@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLAWS // DEEP DIVE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&family=VT323&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --term-red: #ff3333;
+            --term-red-dim: rgba(255, 51, 51, 0.1);
+            --term-green: #33ff33;
+            --term-gray: #444;
+            --term-white: #e0e0e0;
+
+            --scanline: rgba(18, 16, 16, 0.5);
+            --glass: rgba(255, 255, 255, 0.02);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--term-white);
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            overflow-x: hidden;
+            min-height: 100vh;
+            padding: 2rem;
+            text-shadow: 0 0 2px rgba(255, 51, 51, 0.3);
+        }
+
+        /* Retro Overlay Effects */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 10;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'VT323', monospace;
+            text-transform: uppercase;
+            font-weight: 400;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--term-gray);
+            padding-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: var(--term-red);
+            letter-spacing: 5px;
+            margin: 0;
+            text-shadow: 3px 3px 0px rgba(255, 50, 50, 0.2);
+        }
+
+        .nav-links a {
+            color: var(--term-gray);
+            text-decoration: none;
+            margin-left: 20px;
+            font-family: 'VT323', monospace;
+            font-size: 1.5rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--term-red);
+        }
+
+        .subtitle {
+            color: var(--term-gray);
+            font-size: 1rem;
+            letter-spacing: 2px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .terminal-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .panel {
+            border: 1px solid var(--term-gray);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 1rem;
+            position: relative;
+            min-height: 200px;
+            transition: border-color 0.2s;
+        }
+
+        .panel:hover {
+            border-color: var(--term-red);
+        }
+
+        .panel-header {
+            position: absolute;
+            top: -10px;
+            left: 10px;
+            background: var(--bg-color);
+            padding: 0 10px;
+            color: var(--term-red);
+            font-family: 'VT323', monospace;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+        }
+
+        .panel-content {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            height: calc(100% - 1rem);
+            overflow-y: auto;
+        }
+
+        /* Specific Layouts */
+        .col-span-2 {
+            grid-column: span 2;
+        }
+
+        .row-span-2 {
+            grid-row: span 2;
+        }
+
+        /* Data Tables / Lists */
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px dashed #222;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .label {
+            color: #666;
+        }
+
+        .value {
+            color: var(--term-white);
+        }
+
+        .value-red {
+            color: var(--term-red);
+        }
+
+        .value-green {
+            color: var(--term-green);
+        }
+
+        .addr {
+            color: #888;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .addr:hover {
+            color: var(--term-white);
+            text-decoration: underline;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--term-green);
+            color: #000;
+            padding: 10px 20px;
+            font-family: 'Fira Code', monospace;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 0 10px var(--term-green);
+        }
+
+        /* Blink Animation */
+        .blink {
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--term-gray);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--term-red);
+        }
+
+        /* Loader */
+        .loading::after {
+            content: '_';
+            animation: blink 0.5s infinite;
+            color: var(--term-red);
+        }
+
+        /* Stats Blocks */
+        .stat-block {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .stat-title {
+            width: 100px;
+            color: var(--term-gray);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .stat-val {
+            font-size: 1.2rem;
+            color: var(--term-white);
+        }
+
+        /* Chart container */
+        .chart-container {
+            position: relative;
+            height: 180px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="title">CLAWS_NETWORK</div>
+            <div class="nav-links">
+                [ <a href="https://claws.network" target="_blank">WEBSITE</a> ]
+                [ <a href="https://explorer.claws.network" target="_blank">EXPLORER</a> ]
+            </div>
+        </div>
+        <div class="subtitle">SYSTEM_STATUS: ONLINE // DEEP_DIVE_MODULE_V5_REDUX</div>
+
+        <!-- Grid Layout (4 Columns) -->
+        <div class="terminal-grid">
+
+            <!-- ROW 1 -->
+
+            <!-- 1. System Metrics -->
+            <div class="panel">
+                <div class="panel-header">Network Status</div>
+                <div class="data-row">
+                    <span class="label">AGE</span>
+                    <span class="value" id="net-age">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="label">VELOCITY</span>
+                    <span class="value" id="apm-val">-- APM</span>
+                </div>
+                <div class="data-row">
+                    <span class="label">TOTAL ACTIONS</span>
+                    <span class="value" id="actions-val">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="label">SUPPLY</span>
+                    <span class="value" id="supply-val">--</span>
+                </div>
+            </div>
+
+            <!-- 2. Agent Interactions (Top Row, 1 col) -->
+            <div class="panel">
+                <div class="panel-header">Agent Interactions</div>
+                <div class="panel-content" id="smart-list" style="height: 180px; overflow-y: auto;">
+                    <div class="loading">DECODING_CALLS</div>
+                </div>
+            </div>
+
+            <!-- 3. Richest Agents (2 cols, Scrollable) -->
+            <div class="panel col-span-2">
+                <div class="panel-header">Richest Agents</div>
+                <div class="panel-content" id="holders-list"
+                    style="height: 180px; overflow-y: auto; padding-right: 5px;">
+                    <div class="loading">INDEXING_VAULTS</div>
+                </div>
+            </div>
+
+            <!-- ROW 2 -->
+
+            <!-- 4. Active Agents -->
+            <div class="panel">
+                <div class="panel-header">Active Agents</div>
+                <div class="panel-content" id="active-list">
+                    <div class="loading">TRACING_SIGNALS</div>
+                </div>
+            </div>
+
+            <!-- 5. Agent Actions (Chart) -->
+            <div class="panel col-span-2">
+                <div class="panel-header">Agent Actions (5k Sample)</div>
+                <div class="panel-content" style="overflow: hidden;">
+                    <div class="chart-container">
+                        <canvas id="methodChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. New Identities -->
+            <div class="panel">
+                <div class="panel-header">New Identities</div>
+                <div class="panel-content" id="new-agents-list">
+                    <div class="loading">DETECTING_BIRTHS</div>
+                </div>
+            </div>
+
+            <!-- ROW 3 -->
+
+            <!-- 7. Active Nodes (2 cols) -->
+            <div class="panel col-span-2">
+                <div class="panel-header">Active Nodes</div>
+                <div class="panel-content" id="validators-list" style="height: 160px; overflow-y: auto;">
+                    <div class="loading">SCANNING_NODES</div>
+                </div>
+            </div>
+
+            <!-- 8. Most Used Apps (1 col) -->
+            <div class="panel">
+                <div class="panel-header">Most Used Apps</div>
+                <div class="panel-content" id="apps-list">
+                    <div class="loading">ANALYZING_USAGE</div>
+                </div>
+            </div>
+
+            <!-- 9. Live Feed (1 col) -->
+            <div class="panel">
+                <div class="panel-header">Live Feed</div>
+                <div class="panel-content" id="live-feed"
+                    style="font-family: 'Fira Code', monospace; color: #888; height: 160px; overflow-y: auto; font-size: 0.8rem;">
+                    > Initializing...<br>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Address Copied</div>
+
+    <script>
+        const API = 'https://api.claws.network';
+        const EXCLUDED = [
+            'claw1s6vxcphgk6uqeklh20w7m8r4x9ec8ql3y2cnpe0c8jjcn8egecfs2zud03', // Stream
+            'claw1hqexn022jx70v7vf90eaj3mr00lgcd6flkf0l8c0pv7x3s3cwu0ssxezvl'  // Foundation
+        ];
+        const EXCLUDED_HOLDERS = [
+            ...EXCLUDED,
+            'claw1pxvdz824e3zkxkk39z2ky5mzuyf26vpalsr2el5dwd6klkkx4yeqtx6lqh',
+            'claw1l778m8p45shvax4qmscklg299879xsdm4mswy7fv6j4udpuffxgqturuqm',
+            'claw1xmedsynmt4jq2zmtnt5gunml774hjnzz0lx9avu89tcl7qx792lsxk8l8g',
+            'claw18svmh359p899nnkltmj3f6av5zww4k0zxuvxu5ljx6wnxnw4s0cscrtuwu'
+        ];
+
+        let methodChartInstance = null;
+        let isFirstLoad = true;
+
+        const app = {
+            init() {
+                this.log("System initialized.");
+                this.refreshAll();
+                setInterval(() => this.refreshAll(), 15000);
+            },
+
+            refreshAll() {
+                this.fetchStats();
+                this.fetchNodes();
+                this.fetchHolders();
+                this.fetchTransactions();
+            },
+
+            log(msg) {
+                const feed = document.getElementById('live-feed');
+                const line = document.createElement('div');
+                line.innerHTML = `> [${new Date().toLocaleTimeString()}] ${msg}`;
+                feed.insertBefore(line, feed.firstChild);
+                if (feed.children.length > 20) feed.lastChild.remove();
+            },
+
+            copy(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    const t = document.getElementById('toast');
+                    t.style.display = 'block';
+                    setTimeout(() => t.style.display = 'none', 2000);
+                });
+            },
+
+            formatTime(seconds) {
+                const d = Math.floor(seconds / (3600 * 24));
+                const h = Math.floor((seconds % (3600 * 24)) / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                return `${d}d ${h}h ${m}m`;
+            },
+
+            async fetchStats() {
+                try {
+                    const res = await fetch(`${API}/stats`);
+                    const data = await res.json();
+
+                    const ageSeconds = data.roundsPassed * 6;
+                    document.getElementById('net-age').innerText = this.formatTime(ageSeconds);
+
+                    if (data.transactions) {
+                        document.getElementById('actions-val').innerText = this.formatNum(data.transactions);
+                    }
+
+                    const econRes = await fetch(`${API}/economics`);
+                    const econ = await econRes.json();
+                    document.getElementById('supply-val').innerText = this.formatNum(econ.totalSupply) + ' CLAW';
+
+                } catch (e) { }
+            },
+
+            async fetchNodes() {
+                try {
+                    const res = await fetch(`${API}/nodes?size=20`);
+                    const data = await res.json();
+                    const list = document.getElementById('validators-list');
+                    list.innerHTML = '';
+
+                    data.sort((a, b) => b.rating - a.rating).slice(0, 6).forEach(node => {
+                        const row = document.createElement('div');
+                        row.className = 'data-row';
+                        row.innerHTML = `
+                            <span class="addr" onclick="app.copy('${node.bls}')">${node.name || this.short(node.bls)}</span>
+                            <span class="value-green">${node.status || 'ACTIVE'}</span>
+                        `;
+                        list.appendChild(row);
+                    });
+                } catch (e) { }
+            },
+
+            async fetchHolders() {
+                try {
+                    const res = await fetch(`${API}/accounts?size=60&sort=balance&order=desc`);
+                    const data = await res.json();
+                    const list = document.getElementById('holders-list');
+                    list.innerHTML = '';
+
+                    data.filter(acc => !EXCLUDED_HOLDERS.includes(acc.address))
+                        .slice(0, 50)
+                        .forEach(acc => {
+                            const row = document.createElement('div');
+                            row.className = 'data-row';
+                            row.style.display = 'grid';
+                            row.style.gridTemplateColumns = '1fr 1fr';
+
+                            row.innerHTML = `
+                                <span class="addr" onclick="app.copy('${acc.address}')">${this.short(acc.address)}</span>
+                                <span class="value" style="text-align:right;">${this.formatNum(acc.balance)}</span>
+                            `;
+                            list.appendChild(row);
+                        });
+                } catch (e) { }
+            },
+
+            async fetchTransactions() {
+                try {
+                    const res = await fetch(`${API}/transactions?size=5000`);
+                    const txs = await res.json();
+
+                    this.processActiveAgents(txs);
+                    this.processAgentInteractions(txs);
+                    this.processNewIdentities(txs);
+                    this.processMostUsedApps(txs);
+                    this.updateChart(txs);
+                    this.calcAPM(txs);
+
+                    if (isFirstLoad) {
+                        isFirstLoad = false;
+                        this.log("Deep scan (5000 txs) complete.");
+                    }
+
+                } catch (e) { console.error(e); }
+            },
+
+            processActiveAgents(txs) {
+                const counts = {};
+                txs.forEach(tx => {
+                    if (EXCLUDED.includes(tx.sender)) return;
+                    counts[tx.sender] = (counts[tx.sender] || 0) + 1;
+                });
+
+                const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+                const list = document.getElementById('active-list');
+                list.innerHTML = '';
+
+                sorted.forEach(([addr, count]) => {
+                    const row = document.createElement('div');
+                    row.className = 'data-row';
+                    row.innerHTML = `
+                            <span class="addr" onclick="app.copy('${addr}')">${this.short(addr)}</span>
+                            <span class="value-red">${count} TX</span>
+                        `;
+                    list.appendChild(row);
+                });
+            },
+
+            processAgentInteractions(txs) {
+                const calls = txs.filter(tx =>
+                    (tx.function && tx.function !== 'stream') ||
+                    (tx.data && tx.data.length > 0 && tx.data !== 'stream')
+                ).slice(0, 20);
+
+                const list = document.getElementById('smart-list');
+                list.innerHTML = '';
+
+                if (calls.length === 0) {
+                    list.innerHTML = '<div style="color:#555">Only "stream" calls detected</div>';
+                    return;
+                }
+
+                calls.forEach(tx => {
+                    const row = document.createElement('div');
+                    row.className = 'data-row';
+                    const func = tx.function || 'Default';
+                    row.innerHTML = `
+                        <div>
+                            <span class="addr" onclick="app.copy('${tx.sender}')">${this.short(tx.sender)}</span>
+                            <span style="color:#666">-></span>
+                            <span class="addr" onclick="app.copy('${tx.receiver}')">${this.short(tx.receiver)}</span>
+                        </div>
+                        <span class="value" style="color:var(--term-green)">${func}</span>
+                    `;
+                    list.appendChild(row);
+                });
+            },
+
+            async processMostUsedApps(txs) {
+                const SC_PREFIX = 'claw1qqqqqqqqqqqqqpgq';
+                const counts = {};
+                txs.forEach(tx => {
+                    // Only count calls to smart contracts
+                    if (tx.receiver && tx.receiver.startsWith(SC_PREFIX)) {
+                        counts[tx.receiver] = (counts[tx.receiver] || 0) + 1;
+                    }
+                });
+
+                const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                const list = document.getElementById('apps-list');
+                list.innerHTML = '';
+
+                if (sorted.length === 0) {
+                    list.innerHTML = '<div style="color:#555">NO_CONTRACTS</div>';
+                    return;
+                }
+
+                for (const [addr, count] of sorted) {
+                    let name = this.short(addr);
+
+                    try {
+                        const r = await fetch(`${API}/accounts/${addr}`);
+                        const d = await r.json();
+                        if (d.username) name = d.username;
+                        else if (d.name) name = d.name;
+                    } catch (e) { }
+
+                    const row = document.createElement('div');
+                    row.className = 'data-row';
+                    row.innerHTML = `
+                        <span class="addr" onclick="app.copy('${addr}')">${name}</span>
+                        <span class="value-red">${count} Calls</span>
+                    `;
+                    list.appendChild(row);
+                }
+            },
+
+            processNewIdentities(txs) {
+                const newbsMap = new Map();
+                for (let tx of txs) {
+                    if (tx.nonce < 2 && !newbsMap.has(tx.sender)) {
+                        newbsMap.set(tx.sender, tx.nonce);
+                        if (newbsMap.size >= 6) break;
+                    }
+                }
+                const list = document.getElementById('new-agents-list');
+                list.innerHTML = '';
+                if (newbsMap.size === 0) {
+                    list.innerHTML = '<div style="color:#555">NO_HATCHLINGS</div>';
+                    return;
+                }
+                Array.from(newbsMap.entries()).forEach(([sender, nonce]) => {
+                    const row = document.createElement('div');
+                    row.className = 'data-row';
+                    row.innerHTML = `
+                        <span class="addr" onclick="app.copy('${sender}')">${this.short(sender)}</span>
+                        <span style="color:#666">Nonce:${nonce}</span>
+                    `;
+                    list.appendChild(row);
+                });
+            },
+
+            calcAPM(txs) {
+                if (txs.length < 2) return;
+                const newest = txs[0].timestamp;
+                const oldest = txs[txs.length - 1].timestamp;
+
+                let diffSeconds = Math.abs(newest - oldest);
+                if (diffSeconds <= 0) return;
+
+                // Auto-detect: if timestamps are in milliseconds, convert to seconds
+                if (newest > 1e12) diffSeconds = diffSeconds / 1000;
+
+                const minutes = diffSeconds / 60;
+                if (minutes <= 0) return;
+                const apm = Math.round(txs.length / minutes);
+
+                document.getElementById('apm-val').innerText = `${apm.toLocaleString()} APM`;
+            },
+
+            updateChart(txs) {
+                const counts = {};
+                txs.forEach(tx => {
+                    if (EXCLUDED.includes(tx.sender)) return;
+
+                    let method = 'Transfer';
+                    if (tx.function) method = tx.function;
+                    else if (tx.data && tx.data.length > 0) method = 'Contract Call';
+
+                    counts[method] = (counts[method] || 0) + 1;
+                });
+
+                const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                let labels = [];
+                let data = [];
+                if (sorted.length > 6) {
+                    const top5 = sorted.slice(0, 5);
+                    const others = sorted.slice(5);
+                    top5.forEach(([l, d]) => { labels.push(l); data.push(d); });
+                    labels.push('Other');
+                    data.push(others.reduce((acc, c) => acc + c[1], 0));
+                } else {
+                    sorted.forEach(([l, d]) => { labels.push(l); data.push(d); });
+                }
+
+                const ctx = document.getElementById('methodChart').getContext('2d');
+                const colors = ['#33ff33', '#ff3333', '#e0e0e0', '#444444', '#ffff33', '#33ffff'];
+
+                if (methodChartInstance) {
+                    methodChartInstance.data.labels = labels;
+                    methodChartInstance.data.datasets[0].data = data;
+                    methodChartInstance.update();
+                } else {
+                    Chart.defaults.font.family = "'Fira Code', monospace";
+                    Chart.defaults.color = '#888';
+                    methodChartInstance = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: data,
+                                backgroundColor: colors,
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: { boxWidth: 10, color: '#888' }
+                                }
+                            }
+                        }
+                    });
+                }
+            },
+
+            calcTPS(txs) {
+                if (txs.length < 2) return;
+                // Auto-detect unit
+                let t1 = txs[0].timestamp;
+                let t2 = txs[txs.length - 1].timestamp;
+                let diff = Math.abs(t1 - t2);
+
+                if (diff === 0) diff = 1;
+
+                // If timestamp > 1e12 (milliseconds), convert diff to seconds
+                if (t1 > 1e12) diff = diff / 1000;
+
+                if (diff > 0) {
+                    const tps = txs.length / diff;
+                    document.getElementById('tps-val').innerText = tps.toFixed(2);
+                }
+            },
+
+            short(str) {
+                if (!str) return 'UNKNOWN';
+                return str.substring(0, 6) + '...' + str.substring(str.length - 4);
+            },
+
+            formatNum(val) {
+                let num = parseFloat(val);
+                if (num > 1e18) num = num / 1e18;
+                if (num > 1e6) return (num / 1e6).toFixed(2) + 'M';
+                if (num > 1e3) return (num / 1e3).toFixed(2) + 'K';
+                return num.toFixed(2);
+            }
+        };
+
+        app.init();
+    </script>
+</body>
+
+</html>
