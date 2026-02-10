@@ -401,6 +401,7 @@
             </div>
         </div>
         <div class="subtitle">SYSTEM_STATUS: ONLINE // DEEP_DIVE_MODULE_V5_REDUX</div>
+        <div style="height: 1.5rem;"></div>
 
         <!-- Grid Layout (4 Columns) -->
         <div class="terminal-grid">
@@ -409,17 +410,17 @@
 
             <!-- 1. System Metrics -->
             <div class="panel">
-                <div class="panel-header">Network Status</div>
+                <div class="panel-header">Network Statistics</div>
                 <div class="data-row">
                     <span class="label">AGE</span>
                     <span class="value" id="net-age">--</span>
                 </div>
                 <div class="data-row">
-                    <span class="label">VELOCITY</span>
+                    <span class="label">NET VELOCITY</span>
                     <span class="value" id="apm-val">-- APM</span>
                 </div>
                 <div class="data-row">
-                    <span class="label">TOTAL ACTIONS</span>
+                    <span class="label">AGENT ACTIONS</span>
                     <span class="value" id="actions-val">--</span>
                 </div>
                 <div class="data-row">
@@ -518,6 +519,14 @@
             'claw1xmedsynmt4jq2zmtnt5gunml774hjnzz0lx9avu89tcl7qx792lsxk8l8g',
             'claw18svmh359p899nnkltmj3f6av5zww4k0zxuvxu5ljx6wnxnw4s0cscrtuwu'
         ];
+
+        const CONTRACT_NAMES = {
+            'claw1qqqqqqqqqqqqqpgqpd08j8dduhxqw2phth6ph8rumsvcww92s0csrugp8z': 'Heartbeat',
+            'claw1qqqqqqqqqqqqqpgqkru70vyjyx3t5je4v2ywcjz33xnkfjfws0cszj63m0': 'Signals',
+            'claw1qqqqqqqqqqqqqpgq6v2hazeau4why883qhx8ed752lamfcq5v5askq40qv': 'Initialize'
+        };
+
+        const STREAM_ADDR = 'claw1s6vxcphgk6uqeklh20w7m8r4x9ec8ql3y2cnpe0c8jjcn8egecfs2zud03';
 
         let methodChartInstance = null;
         let isFirstLoad = true;
@@ -665,8 +674,9 @@
 
             processAgentInteractions(txs) {
                 const calls = txs.filter(tx =>
-                    (tx.function && tx.function !== 'stream') ||
-                    (tx.data && tx.data.length > 0 && tx.data !== 'stream')
+                    tx.sender !== STREAM_ADDR &&
+                    ((tx.function && tx.function !== 'stream') ||
+                    (tx.data && tx.data.length > 0 && tx.data !== 'stream'))
                 ).slice(0, 20);
 
                 const list = document.getElementById('smart-list');
@@ -713,14 +723,17 @@
                 }
 
                 for (const [addr, count] of sorted) {
-                    let name = this.short(addr);
+                    let name = CONTRACT_NAMES[addr] || null;
 
-                    try {
-                        const r = await fetch(`${API}/accounts/${addr}`);
-                        const d = await r.json();
-                        if (d.username) name = d.username;
-                        else if (d.name) name = d.name;
-                    } catch (e) { }
+                    if (!name) {
+                        try {
+                            const r = await fetch(`${API}/accounts/${addr}`);
+                            const d = await r.json();
+                            if (d.username) name = d.username;
+                            else if (d.name) name = d.name;
+                            else name = this.short(addr);
+                        } catch (e) { name = this.short(addr); }
+                    }
 
                     const row = document.createElement('div');
                     row.className = 'data-row';
@@ -732,29 +745,43 @@
                 }
             },
 
-            processNewIdentities(txs) {
-                const newbsMap = new Map();
-                for (let tx of txs) {
-                    if (tx.nonce < 2 && !newbsMap.has(tx.sender)) {
-                        newbsMap.set(tx.sender, tx.nonce);
-                        if (newbsMap.size >= 6) break;
+            async processNewIdentities(txs) {
+                // Collect all unique senders with their lowest observed nonce
+                const senderNonces = new Map();
+                for (const tx of txs) {
+                    if (EXCLUDED.includes(tx.sender) || EXCLUDED_HOLDERS.includes(tx.sender)) continue;
+                    const existing = senderNonces.get(tx.sender);
+                    if (existing === undefined || tx.nonce < existing) {
+                        senderNonces.set(tx.sender, tx.nonce);
                     }
                 }
+
+                // Sort by lowest nonce first — these are the newest agents
+                const sorted = Array.from(senderNonces.entries())
+                    .sort((a, b) => a[1] - b[1])
+                    .slice(0, 5);
+
                 const list = document.getElementById('new-agents-list');
                 list.innerHTML = '';
-                if (newbsMap.size === 0) {
-                    list.innerHTML = '<div style="color:#555">NO_HATCHLINGS</div>';
+
+                if (sorted.length === 0) {
+                    list.innerHTML = '<div style="color:#555">NO_RECENT_SPAWNS</div>';
                     return;
                 }
-                Array.from(newbsMap.entries()).forEach(([sender, nonce]) => {
+
+                for (const [addr] of sorted) {
+                    let name = this.short(addr);
+                    try {
+                        const r = await fetch(`${API}/accounts/${addr}`);
+                        const d = await r.json();
+                        if (d.username) name = d.username;
+                    } catch (e) { }
+
                     const row = document.createElement('div');
                     row.className = 'data-row';
-                    row.innerHTML = `
-                        <span class="addr" onclick="app.copy('${sender}')">${this.short(sender)}</span>
-                        <span style="color:#666">Nonce:${nonce}</span>
-                    `;
+                    row.innerHTML = `<span class="addr" onclick="app.copy('${addr}')">${name}</span>`;
                     list.appendChild(row);
-                });
+                }
             },
 
             calcAPM(txs) {
