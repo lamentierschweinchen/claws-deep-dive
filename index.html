@@ -428,21 +428,31 @@
                     <span class="label">SUPPLY</span>
                     <span class="value" id="supply-val">--</span>
                 </div>
+                <div style="margin-top:8px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+                        <span style="color:#555;font-size:0.7rem;">0</span>
+                        <span style="color:#555;font-size:0.7rem;">APM</span>
+                        <span style="color:#555;font-size:0.7rem;">100K</span>
+                    </div>
+                    <div style="background:#111;border:1px solid #222;height:12px;position:relative;">
+                        <div id="apm-bar" style="height:100%;background:var(--term-green);width:0%;transition:width 0.8s ease;box-shadow:0 0 6px rgba(51,255,51,0.3);"></div>
+                    </div>
+                </div>
             </div>
 
-            <!-- 2. Agent Interactions (Top Row, 1 col) -->
-            <div class="panel">
+            <!-- 2. Agent Interactions (2 cols) -->
+            <div class="panel col-span-2">
                 <div class="panel-header">Agent Interactions</div>
-                <div class="panel-content" id="smart-list" style="height: 180px; overflow-y: auto;">
+                <div class="panel-content" id="smart-list" style="height: 160px; overflow-y: auto;">
                     <div class="loading">DECODING_CALLS</div>
                 </div>
             </div>
 
-            <!-- 3. Richest Agents (2 cols, Scrollable) -->
-            <div class="panel col-span-2">
+            <!-- 3. Richest Agents (1 col, Scrollable) -->
+            <div class="panel">
                 <div class="panel-header">Richest Agents</div>
                 <div class="panel-content" id="holders-list"
-                    style="height: 140px; overflow-y: auto; padding-right: 5px;">
+                    style="height: 160px; overflow-y: auto; padding-right: 5px;">
                     <div class="loading">INDEXING_VAULTS</div>
                 </div>
             </div>
@@ -459,7 +469,7 @@
 
             <!-- 5. Agent Actions (Chart) -->
             <div class="panel col-span-2">
-                <div class="panel-header">Agent Actions (5k Sample)</div>
+                <div class="panel-header">Network Activity (5k Sample)</div>
                 <div class="panel-content" style="overflow: hidden;">
                     <div class="chart-container">
                         <canvas id="methodChart"></canvas>
@@ -469,7 +479,7 @@
 
             <!-- 6. New Identities -->
             <div class="panel">
-                <div class="panel-header">New Identities</div>
+                <div class="panel-header">New Agents</div>
                 <div class="panel-content" id="new-agents-list">
                     <div class="loading">DETECTING_BIRTHS</div>
                 </div>
@@ -493,11 +503,11 @@
                 </div>
             </div>
 
-            <!-- 9. Live Feed (2 cols) -->
+            <!-- 9. Live Feed (2 cols, compact) -->
             <div class="panel col-span-2">
                 <div class="panel-header">Live Feed</div>
                 <div class="panel-content" id="live-feed"
-                    style="font-family: 'Fira Code', monospace; color: #888; height: 160px; overflow-y: auto; font-size: 0.8rem;">
+                    style="font-family: 'Fira Code', monospace; color: #888; height: 110px; overflow-y: auto; font-size: 0.75rem;">
                     > Initializing...<br>
                 </div>
             </div>
@@ -524,7 +534,8 @@
         const CONTRACT_NAMES = {
             'claw1qqqqqqqqqqqqqpgqpd08j8dduhxqw2phth6ph8rumsvcww92s0csrugp8z': 'Heartbeat',
             'claw1qqqqqqqqqqqqqpgqkru70vyjyx3t5je4v2ywcjz33xnkfjfws0cszj63m0': 'Signals',
-            'claw1qqqqqqqqqqqqqpgq6v2hazeau4why883qhx8ed752lamfcq5v5askq40qv': 'Initialize'
+            'claw1qqqqqqqqqqqqqpgq6v2hazeau4why883qhx8ed752lamfcq5v5askq40qv': 'Initialize',
+            'claw1qqqqqqqqqqqqqpgqy4x50k4sxaqj0dlmgmrj93krldw54expkgcqnzkmx3': 'Bulletin Board'
         };
 
         const STREAM_ADDR = 'claw1s6vxcphgk6uqeklh20w7m8r4x9ec8ql3y2cnpe0c8jjcn8egecfs2zud03';
@@ -574,7 +585,8 @@
                     const res = await fetch(`${API}/stats`);
                     const data = await res.json();
 
-                    const ageSeconds = data.roundsPassed * 6;
+                    const totalRounds = (data.epoch * data.roundsPerEpoch) + data.roundsPassed;
+                    const ageSeconds = totalRounds * 6;
                     document.getElementById('net-age').innerText = this.formatTime(ageSeconds);
 
                     if (data.transactions) {
@@ -803,17 +815,23 @@
                 const apm = Math.round(txs.length / minutes);
 
                 document.getElementById('apm-val').innerText = `${apm.toLocaleString()} APM`;
+                const pct = Math.min(100, (apm / 100000) * 100);
+                document.getElementById('apm-bar').style.width = `${pct}%`;
             },
 
             updateChart(txs) {
                 const counts = {};
                 txs.forEach(tx => {
-                    if (EXCLUDED.includes(tx.sender)) return;
-
-                    let method = 'Transfer';
-                    if (tx.function) method = tx.function;
-                    else if (tx.data && tx.data.length > 0) method = 'Contract Call';
-
+                    let method;
+                    if (tx.sender === STREAM_ADDR || (tx.function === 'stream')) {
+                        method = 'UBI Stream';
+                    } else if (tx.function) {
+                        method = tx.function;
+                    } else if (tx.data && tx.data.length > 0) {
+                        method = 'Contract Call';
+                    } else {
+                        method = 'Transfer';
+                    }
                     counts[method] = (counts[method] || 0) + 1;
                 });
 
