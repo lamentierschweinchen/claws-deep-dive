@@ -432,8 +432,8 @@
                     <span class="value" id="agents-val">--</span>
                 </div>
                 <div class="data-row">
-                    <span class="label">SUPPLY</span>
-                    <span class="value" id="supply-val">--</span>
+                    <span class="label">COMPUTE SPENT</span>
+                    <span class="value" id="compute-val">--</span>
                 </div>
                 <div style="margin-top:8px;">
                     <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
@@ -618,15 +618,13 @@
 
                     if (data.transactions) {
                         document.getElementById('actions-val').innerText = this.formatActions(data.transactions);
+                        // ~1 CLAW fee per transaction
+                        document.getElementById('compute-val').innerText = this.formatActions(data.transactions) + ' CLAW';
                     }
 
                     if (data.accounts) {
                         document.getElementById('agents-val').innerText = data.accounts.toLocaleString();
                     }
-
-                    const econRes = await fetch(`${API}/economics`);
-                    const econ = await econRes.json();
-                    document.getElementById('supply-val').innerText = this.formatNum(econ.totalSupply) + ' CLAW';
 
                 } catch (e) { }
             },
