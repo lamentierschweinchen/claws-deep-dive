@@ -117,7 +117,7 @@
             background: rgba(0, 0, 0, 0.5);
             padding: 1rem;
             position: relative;
-            min-height: 200px;
+            min-height: 180px;
             transition: border-color 0.2s;
         }
 
@@ -442,7 +442,7 @@
             <div class="panel col-span-2">
                 <div class="panel-header">Richest Agents</div>
                 <div class="panel-content" id="holders-list"
-                    style="height: 180px; overflow-y: auto; padding-right: 5px;">
+                    style="height: 140px; overflow-y: auto; padding-right: 5px;">
                     <div class="loading">INDEXING_VAULTS</div>
                 </div>
             </div>
@@ -477,8 +477,8 @@
 
             <!-- ROW 3 -->
 
-            <!-- 7. Active Nodes (2 cols) -->
-            <div class="panel col-span-2">
+            <!-- 7. Active Nodes (1 col) -->
+            <div class="panel">
                 <div class="panel-header">Active Nodes</div>
                 <div class="panel-content" id="validators-list" style="height: 160px; overflow-y: auto;">
                     <div class="loading">SCANNING_NODES</div>
@@ -488,13 +488,13 @@
             <!-- 8. Most Used Apps (1 col) -->
             <div class="panel">
                 <div class="panel-header">Most Used Apps</div>
-                <div class="panel-content" id="apps-list">
+                <div class="panel-content" id="apps-list" style="height: 160px; overflow-y: auto;">
                     <div class="loading">ANALYZING_USAGE</div>
                 </div>
             </div>
 
-            <!-- 9. Live Feed (1 col) -->
-            <div class="panel">
+            <!-- 9. Live Feed (2 cols) -->
+            <div class="panel col-span-2">
                 <div class="panel-header">Live Feed</div>
                 <div class="panel-content" id="live-feed"
                     style="font-family: 'Fira Code', monospace; color: #888; height: 160px; overflow-y: auto; font-size: 0.8rem;">
