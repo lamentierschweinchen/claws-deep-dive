@@ -616,13 +616,15 @@
 
                     data.filter(acc => !EXCLUDED_HOLDERS.includes(acc.address))
                         .slice(0, 50)
-                        .forEach(acc => {
+                        .forEach((acc, i) => {
                             const row = document.createElement('div');
                             row.className = 'data-row';
                             row.style.display = 'grid';
-                            row.style.gridTemplateColumns = '1fr 1fr';
+                            row.style.gridTemplateColumns = 'auto 1fr auto';
+                            row.style.gap = '8px';
 
                             row.innerHTML = `
+                                <span style="color:#555;min-width:24px;">${i + 1}.</span>
                                 <span class="addr" onclick="app.copy('${acc.address}')">${this.short(acc.address)}</span>
                                 <span class="value" style="text-align:right;">${this.formatNum(acc.balance)}</span>
                             `;
