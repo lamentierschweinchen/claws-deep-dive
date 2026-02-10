@@ -413,16 +413,20 @@
             <div class="panel">
                 <div class="panel-header">Network Statistics</div>
                 <div class="data-row">
-                    <span class="label">AGE</span>
+                    <span class="label">LIVE SINCE</span>
                     <span class="value" id="net-age">--</span>
                 </div>
                 <div class="data-row">
-                    <span class="label">NET VELOCITY</span>
+                    <span class="label">NETWORK VELOCITY</span>
                     <span class="value" id="apm-val">-- APM</span>
                 </div>
                 <div class="data-row">
                     <span class="label">AGENT ACTIONS</span>
                     <span class="value" id="actions-val">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="label">TOTAL AGENTS</span>
+                    <span class="value" id="agents-val">--</span>
                 </div>
                 <div class="data-row">
                     <span class="label">SUPPLY</span>
@@ -432,7 +436,7 @@
                     <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
                         <span style="color:#555;font-size:0.7rem;">0</span>
                         <span style="color:#555;font-size:0.7rem;">APM</span>
-                        <span style="color:#555;font-size:0.7rem;">10K</span>
+                        <span style="color:#555;font-size:0.7rem;">1K</span>
                     </div>
                     <div style="background:#111;border:1px solid #222;height:12px;position:relative;">
                         <div id="apm-bar" style="height:100%;background:var(--term-green);width:0%;transition:width 0.8s ease;box-shadow:0 0 6px rgba(51,255,51,0.3);"></div>
@@ -585,12 +589,15 @@
                     const res = await fetch(`${API}/stats`);
                     const data = await res.json();
 
-                    const totalRounds = (data.epoch * data.roundsPerEpoch) + data.roundsPassed;
-                    const ageSeconds = totalRounds * 6;
-                    document.getElementById('net-age').innerText = this.formatTime(ageSeconds);
+                    // Hardcoded launch date
+                    document.getElementById('net-age').innerText = 'Feb 04, 2026 16:00 UTC';
 
                     if (data.transactions) {
-                        document.getElementById('actions-val').innerText = this.formatNum(data.transactions);
+                        document.getElementById('actions-val').innerText = this.formatActions(data.transactions);
+                    }
+
+                    if (data.accounts) {
+                        document.getElementById('agents-val').innerText = data.accounts.toLocaleString();
                     }
 
                     const econRes = await fetch(`${API}/economics`);
@@ -809,7 +816,7 @@
                 const apm = Math.round(txs.length / minutes);
 
                 document.getElementById('apm-val').innerText = `${apm.toLocaleString()} APM`;
-                const pct = Math.min(100, (apm / 10000) * 100);
+                const pct = Math.min(100, (apm / 1000) * 100);
                 const bar = document.getElementById('apm-bar');
                 bar.style.width = `${pct}%`;
                 // Green at low APM, lobster red as it climbs toward 10K
@@ -900,6 +907,12 @@
             short(str) {
                 if (!str) return 'UNKNOWN';
                 return str.substring(0, 6) + '...' + str.substring(str.length - 4);
+            },
+
+            formatActions(val) {
+                let num = parseFloat(val);
+                if (num >= 1e9) return (num / 1e6).toFixed(2) + 'M';
+                return num.toLocaleString();
             },
 
             formatNum(val) {
