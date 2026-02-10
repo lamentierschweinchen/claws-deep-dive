@@ -268,6 +268,125 @@
             display: flex;
             justify-content: center;
         }
+
+        /* Header layout */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid var(--term-gray);
+            padding-bottom: 1rem;
+        }
+
+        .title {
+            font-family: 'VT323', monospace;
+            font-size: 3rem;
+            color: var(--term-red);
+            letter-spacing: 5px;
+            text-shadow: 3px 3px 0px rgba(255, 50, 50, 0.2);
+            text-transform: uppercase;
+        }
+
+        /* Tablet: 2 columns */
+        @media (max-width: 1024px) {
+            body {
+                padding: 1rem;
+                font-size: 13px;
+            }
+
+            .terminal-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+
+            .col-span-2 {
+                grid-column: span 2;
+            }
+
+            .title {
+                font-size: 2.2rem;
+                letter-spacing: 3px;
+            }
+
+            .nav-links a {
+                font-size: 1.2rem;
+                margin-left: 10px;
+            }
+
+            .subtitle {
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Mobile: single column */
+        @media (max-width: 640px) {
+            body {
+                padding: 0.75rem;
+                font-size: 12px;
+            }
+
+            .terminal-grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+
+            .col-span-2 {
+                grid-column: span 1;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .title {
+                font-size: 1.8rem;
+                letter-spacing: 2px;
+            }
+
+            .nav-links {
+                display: flex;
+                gap: 5px;
+            }
+
+            .nav-links a {
+                font-size: 1.1rem;
+                margin-left: 0;
+            }
+
+            .subtitle {
+                font-size: 0.7rem;
+                letter-spacing: 1px;
+                margin-bottom: 0.5rem;
+            }
+
+            .panel {
+                min-height: 150px;
+            }
+
+            .panel-header {
+                font-size: 1.2rem;
+            }
+
+            .panel-content {
+                font-size: 0.8rem;
+            }
+
+            .chart-container {
+                height: 150px;
+            }
+
+            .stat-title {
+                width: 80px;
+                font-size: 0.7rem;
+            }
+
+            .stat-val {
+                font-size: 1rem;
+            }
+        }
     </style>
 </head>
 
