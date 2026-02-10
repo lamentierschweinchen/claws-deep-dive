@@ -401,7 +401,10 @@
                 [ <a href="https://explorer.claws.network" target="_blank">EXPLORER</a> ]
             </div>
         </div>
-        <div class="subtitle">SYSTEM_STATUS: ONLINE // DEEP_DIVE_MODULE_V0.69</div>
+        <div class="subtitle" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>SYSTEM_STATUS: ONLINE // DEEP_DIVE_MODULE_V0.69</span>
+            <span id="refresh-btn" onclick="app.manualRefresh()" style="color:var(--term-gray);cursor:pointer;font-size:0.85rem;transition:color 0.2s;" onmouseover="this.style.color='var(--term-red)'" onmouseout="this.style.color='var(--term-gray)'">[REFRESH // <span id="countdown">15</span>s]</span>
+        </div>
         <div style="height: 1.5rem;"></div>
 
         <!-- Grid Layout (4 Columns) -->
@@ -413,7 +416,7 @@
             <div class="panel">
                 <div class="panel-header">Network Statistics</div>
                 <div class="data-row">
-                    <span class="label">LIVE SINCE</span>
+                    <span class="label">UPTIME</span>
                     <span class="value" id="net-age">--</span>
                 </div>
                 <div class="data-row">
@@ -544,14 +547,38 @@
 
         const STREAM_ADDR = 'claw1s6vxcphgk6uqeklh20w7m8r4x9ec8ql3y2cnpe0c8jjcn8egecfs2zud03';
 
+        const GENESIS = new Date('2026-02-04T16:00:00Z').getTime();
+
         let methodChartInstance = null;
         let isFirstLoad = true;
+        let refreshCountdown = 15;
 
         const app = {
             init() {
                 this.log("System initialized.");
                 this.refreshAll();
-                setInterval(() => this.refreshAll(), 15000);
+                this.updateUptime();
+                setInterval(() => this.updateUptime(), 1000);
+                setInterval(() => {
+                    this.refreshAll();
+                    refreshCountdown = 15;
+                }, 15000);
+                setInterval(() => {
+                    if (refreshCountdown > 0) refreshCountdown--;
+                    document.getElementById('countdown').innerText = refreshCountdown;
+                }, 1000);
+            },
+
+            manualRefresh() {
+                this.refreshAll();
+                refreshCountdown = 15;
+                this.log("Manual refresh triggered.");
+            },
+
+            updateUptime() {
+                const now = Date.now();
+                const diff = Math.floor((now - GENESIS) / 1000);
+                document.getElementById('net-age').innerText = this.formatTime(diff);
             },
 
             refreshAll() {
@@ -588,9 +615,6 @@
                 try {
                     const res = await fetch(`${API}/stats`);
                     const data = await res.json();
-
-                    // Hardcoded launch date
-                    document.getElementById('net-age').innerText = 'Feb 04, 2026 16:00 UTC';
 
                     if (data.transactions) {
                         document.getElementById('actions-val').innerText = this.formatActions(data.transactions);
